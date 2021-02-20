@@ -1,0 +1,50 @@
+---
+title: "TestFile"
+author: "Sam Addis"
+date: "2/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load libraries.
+```{r}
+library(readr)
+library(phyloseq)
+library(knitr)
+library(ggplot2)
+library(dada2)
+```
+
+List files to keep track of filenames and path.
+```{bash}
+ls /data/project_data/biofouling_pacbio
+```
+
+Define variables. Will need to be altered if you have your scratch files in a different path, as this is set up for how I have my scratch folder organized.
+```{r}
+path = "/data/project_data/biofouling_pacbio"
+outPath = "/home/guest/scratch/biofoul"
+EUsamples = list.files(path, pattern="EU", full.names=TRUE)
+WUsamples = list.files(path, pattern="WU", full.names=TRUE)
+primerSeq = "AGRGTTTGATCMTGGCTCAG"
+
+```
+
+Trim primers.  Not sure if we have reverse sequence or how to find it if we do.  It is optional for the removePrimers function, though.
+```{r}
+noPrimeEU = file.path(outPath, "noprimers", basename(EUsamples))
+noPrimeWU = file.path(outPath, "noprimers", basename(WUsamples))
+EU_no_primer = removePrimers(EUsamples, noPrimeEU, primer.fwd=primerSeq, orient=TRUE)
+WU_no_primer = removePrimers(WUsamples, noPrimeWU, primer.fwd=primerSeq, orient=TRUE)
+```
+
+Just some checks.
+```{r}
+plotQualityProfile(file.path("/home/guest/scratch/biofoul/noprimers"))
+plotQualityProfile(EUsamples) #EU samples without primers removed
+plotQualityProfile(WUsamples) #WU samples without primers removed
+```
+It looks like we will need to trim quite a bit as quality scores dip dramatically after 1500bp?  Just need to filter and trim and I think we can move on to DADA2.
