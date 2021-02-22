@@ -1,0 +1,150 @@
+---
+title: "AMKDADA2Analysis"
+output: html_document
+---
+
+Load Libraries
+
+```{r, message=FALSE}
+
+library(tools)
+library(tibble)
+library(dplyr)
+library(readr)
+library(fs)
+library(dada2)
+```
+
+Create directories and paths
+```{r}
+data.dir <- file.path("/data/project_data/biofouling_pacbio")
+output.dir <- file.path("/home/guest/BiofoulingProject")
+
+file_chmod(path_dir(output.dir), "u+w")
+dir.create(output.dir, recursive = TRUE)
+
+Sys.setenv(DATA_DIR=data.dir)
+Sys.setenv(OUTPUT_DIR=output.dir)
+```
+
+```{r}
+list.files(data.dir)
+```
+
+Group WU vs EU Samples
+
+```{r}
+WUSampl <- list.files(data.dir, pattern="WU", full.names=TRUE)
+EUSampl <- list.files(data.dir, pattern = "EU", full.names = TRUE)
+```
+
+```{r}
+print(WUSampl)
+print(EUSampl)
+```
+
+Observe Mapping file
+
+```{r}
+Original_Map <- read.csv("/data/project_data/biofouling_pacbio/062519CL27F-mapping.txt", sep = "", check.names = FALSE)
+print(Original_Map)
+```
+
+Decided to make linker sequence the forward primer
+and reverse complemented the reverseprimer from the mapping file
+
+```{r}
+ForPrimSeq <- "AGRGTTTGATCMTGGCTCAG"
+RevPrimSeq <- "AAGTCGTAACAAGGTAACCC"
+```
+
+Created a no primers directory
+
+```{r}
+NoprimWU <- file.path(output.dir, "noprimers", basename(WUSampl))
+NoprimEU <- file.path(output.dir, "noprimers", basename(EUSampl))
+
+```
+
+Removing primers from WU and EU samples
+
+```{r}
+WU_Removed_Prim <- removePrimers(WUSampl, NoprimWU, primer.fwd=ForPrimSeq, primer.rev=RevPrimSeq, orient=TRUE)
+```
+
+```{r}
+EU_Removed_Prim <- removePrimers(EUSampl, NoprimEU, primer.fwd=ForPrimSeq, primer.rev=RevPrimSeq, orient=TRUE)
+```
+
+Made filtered directory and filtered by removing last 100 reads
+
+```{r}
+WU_Filt <- file.path(output.dir, "noprimers", "filtered", basename(WUSampl))
+EU_Filt <- file.path(output.dir, "noprimers", "filtered", basename(EUSampl))
+
+WUfilt.out <- filterAndTrim(NoprimWU, WU_Filt, trimRight=100, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+WUfilt.out
+```
+
+Looks like it cleaned up a lot of the reads
+
+```{r}
+plotQualityProfile(file.path("/home/guest/scratch/IBIEMProject/noprimers"))
+plotQualityProfile(file.path("/home/guest/scratch/IBIEMProject/noprimers/filtered"))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
