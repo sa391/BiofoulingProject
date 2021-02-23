@@ -1,0 +1,61 @@
+---
+title: "Trim_Data"
+author: "Sarah Bartley"
+date: "2/19/2021"
+output: html_document
+---
+Load Libraries
+
+```{r, message=FALSE}
+
+library(tools)
+library(tibble)
+library(dplyr)
+library(readr)
+library(fs)
+library(dada2)
+```
+
+#Paths,Directories, and Shell Variables 
+```{r}
+#Directories 
+data.dir = "/data/project_data/biofouling_pacbio"
+output.dir = "/home/guest/BiofoulingProject"
+
+# Files
+map.file = file.path(data.dir,"/data/project_data/biofouling_pacbio/062519CL27F-mapping.txt")
+EU1.fastq = file.path(data.dir,"EU1.fastq.gz")
+EU2.fastq = file.path(data.dir,"EU2.fastq.gz")
+EU3.fastq = file.path(data.dir,"EU3.fastq.gz")
+WU1.fastq = file.path(data.dir,"WU1.fastq.gz")
+WU2.fastq = file.path(data.dir,"WU2.fastq.gz")
+WU3.fastq = file.path(data.dir,"WU3.fastq.gz")
+
+Sys.setenv(DATA_DIR=data.dir)
+Sys.setenv(OUTPUT_DIR=output.dir)
+```
+
+#Examine quality profiles of EU and WU samples 
+```{r}
+list.files(data.dir)
+```
+
+
+
+```{r}
+Prime_Seq = "AGRGTTTGATCMTGGCTCAG"
+```
+
+Trim and Filter 
+```{r}
+filt_path <- file.path(scratch.dir, "filtered") # Place filtered files in filtered/ subdirectory
+filtEU1 <- file.path(filt_path, "remove_primer", "EU1.fastq.gz")
+filtEU2 <- file.path(filt_path, "remove_primer", "EU2.fastq.gz")
+filtEU3 <- file.path(filt_path, "remove_primer", "EU3.fastq.gz")
+
+filtWU1 <- file.path(filt_path, "remove_primer", "WU1.fastq.gz")
+filtWU2 <- file.path(filt_path, "remove_primer", "WU2.fastq.gz")
+filtWU3 <- file.path(filt_path, "remove_primer","WU3.fastq.gz")
+```
+
+
