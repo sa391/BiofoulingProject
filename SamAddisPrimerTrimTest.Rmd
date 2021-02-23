@@ -30,21 +30,58 @@ outPath = "/home/guest/scratch/biofoul"
 EUsamples = list.files(path, pattern="EU", full.names=TRUE)
 WUsamples = list.files(path, pattern="WU", full.names=TRUE)
 primerSeq = "AGRGTTTGATCMTGGCTCAG"
+primerSeqRev = "AAGTCGTAACAAGGTAACCC"
 
 ```
 
-Trim primers.  Not sure if we have reverse sequence or how to find it if we do.  It is optional for the removePrimers function, though.
+Trim primers.
 ```{r}
 noPrimeEU = file.path(outPath, "noprimers", basename(EUsamples))
 noPrimeWU = file.path(outPath, "noprimers", basename(WUsamples))
-EU_no_primer = removePrimers(EUsamples, noPrimeEU, primer.fwd=primerSeq, orient=TRUE)
-WU_no_primer = removePrimers(WUsamples, noPrimeWU, primer.fwd=primerSeq, orient=TRUE)
+EU_no_primer = removePrimers(EUsamples, noPrimeEU, primer.fwd=primerSeq, primer.rev=primerSeqRev, orient=TRUE)
+WU_no_primer = removePrimers(WUsamples, noPrimeWU, primer.fwd=primerSeq, primer.rev=primerSeqRev, orient=TRUE)
 ```
 
-Just some checks.
+Filter.
 ```{r}
-plotQualityProfile(file.path("/home/guest/scratch/biofoul/noprimers"))
-plotQualityProfile(EUsamples) #EU samples without primers removed
-plotQualityProfile(WUsamples) #WU samples without primers removed
+WUfiltpath = file.path(outPath, "noprimers", "filtered", basename(WUsamples))
+EUfiltpath = file.path(outPath, "noprimers", "filtered", basename(EUsamples))
+
+WUfiltered = filterAndTrim(noPrimeWU, WUfiltpath, trimRight=100, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+WUfiltered
+
+EUfiltered = filterAndTrim(noPrimeEU, EUfiltpath, trimRight=100, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+EUfiltered
 ```
-It looks like we will need to trim quite a bit as quality scores dip dramatically after 1500bp?  Just need to filter and trim and I think we can move on to DADA2.
+
+Learn error rates.
+```{r}
+WUerror = learnErrors(WUfiltpath, multithread=TRUE)
+EUerror = learnErrors(EUfiltpath, multithread=TRUE)
+
+plotErrors(WUerror, nominalQ=TRUE)
+plotErrors(EUerror, nominalQ=TRUE)
+```
+
+Dereplicate.
+```{r}
+WUderep = derepFastq(WUfiltpath, verbose=TRUE)
+EUderep = derepFastq(EUfiltpath, verbose=TRUE)
+
+names(WUderep) = WUsamples
+names(EUderep) = EUsamples
+```
+
+Sample inference.
+```{r}
+dadaWU <- dada(WUderep, err=WUerror, multithread=TRUE)
+dadaEU <- dada(EUderep, err=EUerror, multithread=TRUE)
+```
+
+```{r}
+dadaWU[[2]]
+dadaEU[[2]]
+```
+
+Construct sequence table.
+
