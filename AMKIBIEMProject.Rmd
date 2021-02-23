@@ -10,9 +10,7 @@ Load Libraries
 library(tools)
 library(tibble)
 library(dplyr)
-library(readr)
-library(fs)
-library(dada2)
+
 ```
 
 Create directories and paths
@@ -69,11 +67,11 @@ NoprimEU <- file.path(output.dir, "noprimers", basename(EUSampl))
 Removing primers from WU and EU samples
 
 ```{r}
-WU_Removed_Prim <- removePrimers(WUSampl, NoprimWU, primer.fwd=ForPrimSeq, primer.rev=RevPrimSeq, orient=TRUE)
+WU_Removed_Prim <- dada2::removePrimers(WUSampl, NoprimWU, primer.fwd=ForPrimSeq, primer.rev=RevPrimSeq, orient=TRUE)
 ```
 
 ```{r}
-EU_Removed_Prim <- removePrimers(EUSampl, NoprimEU, primer.fwd=ForPrimSeq, primer.rev=RevPrimSeq, orient=TRUE)
+EU_Removed_Prim <- dada2::removePrimers(EUSampl, NoprimEU, primer.fwd=ForPrimSeq, primer.rev=RevPrimSeq, orient=TRUE)
 ```
 
 Made filtered directory and filtered by removing last 100 reads
@@ -82,32 +80,108 @@ Made filtered directory and filtered by removing last 100 reads
 WU_Filt <- file.path(output.dir, "noprimers", "filtered", basename(WUSampl))
 EU_Filt <- file.path(output.dir, "noprimers", "filtered", basename(EUSampl))
 
-WUfilt.out <- filterAndTrim(NoprimWU, WU_Filt, trimRight=100, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+WUfilt.out <- dada2::filterAndTrim(NoprimWU, WU_Filt, truncLen = 1300, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
 WUfilt.out
 ```
 
 Looks like it cleaned up a lot of the reads
 
 ```{r}
-plotQualityProfile(file.path("/home/guest/scratch/IBIEMProject/noprimers"))
-plotQualityProfile(file.path("/home/guest/scratch/IBIEMProject/noprimers/filtered"))
 
 ```
 
 
+```{r}
+dada2::plotQualityProfile(file.path("/home/guest/BiofoulingProject/noprimers"))
+dada2::plotQualityProfile(file.path("/home/guest/BiofoulingProject/noprimers/filtered"))
+
+```
+
+```{r}
+EUfilt.out <- dada2::filterAndTrim(NoprimEU, EU_Filt, truncLen = 1300, trimRight=100, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+EUfilt.out
+```
 
 
+Start DADA2 Analysis
+
+Learn Errors EU
+
+```{r}
+errEU <- dada2::learnErrors(EU_Filt, multithread = FALSE)
+```
+
+Learn Errors WU
+
+```{r}
+errWU <- dada2::learnErrors(WU_Filt, multithread = FALSE)
+```
+
+Plot Errors to ensure they look OK
+
+```{r}
+dada2::plotErrors(errEU, nominalQ=TRUE)
+```
 
 
+```{r}
+dada2::plotErrors(errWU, nominalQ=TRUE)
+```
 
+The estimated error rates (black line) look like good matches so we can proceed
 
+Determine the number of reads per sample
 
+```{r}
+dadaEU<- dada2::dada(EU_Filt, err=errEU, multithread=TRUE)
+```
 
+```{r}
+dadaWU<- dada2::dada(WU_Filt, err=errWU, multithread=TRUE)
+```
 
+Constructing ASV Table
 
+```{r}
+seqtabEU <- dada2::makeSequenceTable(dadaEU)
+seqtabWU <- dada2::makeSequenceTable(dadaWU)
+```
 
+We have a total of 27 ASVs all of length 1300 as we specified in the Filter and Trim step, don't have to remove chimeras
 
+```{r}
+table(nchar(dada2::getSequences(seqtabEU)))
+table(nchar(dada2::getSequences(seqtabWU)))
+```
 
+Time to assign taxonomy
+
+```{r}
+taxaEU <- dada2::assignTaxonomy(seqtabEU, "~/BiofoulingProject/rdp_train_set_18.fa.gz", multithread = TRUE)
+taxaWU <- dada2::assignTaxonomy(seqtabWU, "~/BiofoulingProject/rdp_train_set_18.fa.gz", multithread = TRUE)
+```
+
+```{r}
+speciesEU <- dada2::addSpecies(taxaEU, "~/BiofoulingProject/rdp_species_assignment_18.fa.gz")
+speciesWU <- dada2::addSpecies(taxaWU, "~/BiofoulingProject/rdp_species_assignment_18.fa.gz")
+```
+
+```{r}
+EUprint <- speciesEU
+rownames(EUprint) <- NULL
+```
+
+```{r}
+WUprint <- speciesWU
+rownames(WUprint) <- NULL
+```
+
+Looks like it assigned Genus, however could not get it to assign species...
+
+```{r}
+print(EUprint)
+print(WUprint)
+```
 
 
 
