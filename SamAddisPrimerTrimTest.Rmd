@@ -136,6 +136,18 @@ psWU
 ```{r}
 write_rds(psEU, "/home/guest/scratch/biofoul/psEU.rds")
 write_rds(psWU, "/home/guest/scratch/biofoul/psWU.rds")
+
+```
+```{r}
+psEU %>%
+  transform_sample_counts(function(x) x / sum(x) ) ->
+  relativeEU
+plot_bar(relativeEU, fill= "Genus")
+
+psWU %>%
+  transform_sample_counts(function(x) x / sum(x) ) ->
+  relativeWU
+plot_bar(relativeWU, fill= "Genus")
 ```
 
 
