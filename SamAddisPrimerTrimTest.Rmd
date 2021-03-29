@@ -16,11 +16,20 @@ library(phyloseq)
 library(knitr)
 library(ggplot2)
 library(dada2)
+library(dplyr)
+library(fs)
+library(tidyr)
+library(tibble)
+library(stringr)
+library(magrittr)
+
+silva.ref = "/data/references/dada/silva_nr_v132_train_set.fa.gz"
+silva.species.ref = "/data/references/dada/silva_species_assignment_v132.fa.gz"
 ```
 
 List files to keep track of filenames and path.
 ```{bash}
-ls /data/project_data/biofouling_pacbio
+ls /data/project_data/biofouling_pacbio/
 ```
 
 Define variables. Will need to be altered if you have your scratch files in a different path, as this is set up for how I have my scratch folder organized.
@@ -84,4 +93,62 @@ dadaEU[[2]]
 ```
 
 Construct sequence table.
+
+```{r}
+seqtabWU = makeSequenceTable(dadaWU)
+seqtabEU = makeSequenceTable(dadaEU)
+```
+
+Remove chimeras.
+```{r}
+seqtabWUnochim = removeBimeraDenovo(seqtabWU, method="consensus", multithread=TRUE, verbose=TRUE)
+seqtabEUnochim = removeBimeraDenovo(seqtabEU, method="consensus", multithread=TRUE, verbose=TRUE)
+```
+
+Assign taxa.
+```{r}
+taxaWU = assignTaxonomy(seqtabWUnochim, silva.ref, multithread=TRUE)
+taxaEU = assignTaxonomy(seqtabEUnochim, silva.ref, multithread=TRUE)
+```
+
+```{r}
+taxaWU
+```
+
+
+
+
+Phyloseq object.
+```{r}
+testsdmeta = read_tsv(file.path("/data/project_data/biofouling_pacbio/062519CL27F-mapping.txt"))
+
+otuEU = otu_table(seqtabEUnochim, taxa_are_rows=F)
+otuWU = otu_table(seqtabWUnochim, taxa_are_rows=F)
+
+sd = sample_data(meta.df)
+psEU = phyloseq(otuEU, testsdmeta, tax_table(taxaEU))
+psWU = phyloseq(otuWU, testsdmeta, tax_table(taxaWU))
+
+psEU
+psWU
+```
+
+```{r}
+write_rds(psEU, "/home/guest/scratch/biofoul/psEU.rds")
+write_rds(psWU, "/home/guest/scratch/biofoul/psWU.rds")
+
+```
+```{r}
+psEU %>%
+  transform_sample_counts(function(x) x / sum(x) ) ->
+  relativeEU
+plot_bar(relativeEU, fill= "Genus")
+
+psWU %>%
+  transform_sample_counts(function(x) x / sum(x) ) ->
+  relativeWU
+plot_bar(relativeWU, fill= "Genus")
+```
+
+
 
