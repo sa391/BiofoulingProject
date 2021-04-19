@@ -1,15 +1,19 @@
 ---
-title: "AMKDADA2Analysis"
+title: "AMKDADA2_MothurAnalysis"
 output: html_document
 ---
 
 Load Libraries
+
+
+
 
 ```{r, message=FALSE}
 
 library(tools)
 library(tibble)
 library(dplyr)
+library(dada2)
 
 ```
 
@@ -18,7 +22,7 @@ Create directories and paths
 data.dir <- file.path("/data/project_data/biofouling_pacbio")
 output.dir <- file.path("/home/guest/BiofoulingProject")
 
-file_chmod(path_dir(output.dir), "u+w")
+
 dir.create(output.dir, recursive = TRUE)
 
 Sys.setenv(DATA_DIR=data.dir)
@@ -80,7 +84,7 @@ Made filtered directory and filtered by removing last 100 reads
 WU_Filt <- file.path(output.dir, "noprimers", "filtered", basename(WUSampl))
 EU_Filt <- file.path(output.dir, "noprimers", "filtered", basename(EUSampl))
 
-WUfilt.out <- dada2::filterAndTrim(NoprimWU, WU_Filt, truncLen = 1300, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+WUfilt.out <- dada2::filterAndTrim(NoprimWU, WU_Filt, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE, truncLen = 1400)
 WUfilt.out
 ```
 
@@ -89,16 +93,13 @@ Looks like it cleaned up a lot of the reads
 ```{r}
 
 ```
-
-
 ```{r}
 dada2::plotQualityProfile(file.path("/home/guest/BiofoulingProject/noprimers"))
 dada2::plotQualityProfile(file.path("/home/guest/BiofoulingProject/noprimers/filtered"))
-
 ```
 
 ```{r}
-EUfilt.out <- dada2::filterAndTrim(NoprimEU, EU_Filt, truncLen = 1300, trimRight=100, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+EUfilt.out <- dada2::filterAndTrim(NoprimEU, EU_Filt, minLen=1000, maxLen=1600, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE, truncLen = 1400)
 EUfilt.out
 ```
 
@@ -183,6 +184,453 @@ print(EUprint)
 print(WUprint)
 ```
 
+```{r}
+WUprintdata <- as.data.frame(WUprint)
+```
+```{r}
+EUprintdata <- as.data.frame(EUprint)
+```
+
+
+```{r}
+unique(WUprintdata$Genus)
+
+```
+
+```{r}
+length(unique(WUprintdata$Family))
+```
+
+```{r}
+length(unique(EUprintdata$Family))
+```
+
+
+```{r}
+EUprintdata
+```
+
+
+
+
+
+
+Trimming to V4 region - trimmed 600 from left and right of all reads
+
+
+
+
+
+```{r}
+F515 <- "GTGCCAGCMGCCGCGGTAA"
+R806 <- "GGACTACHVHHHTWTCTAAT"
+```
+
+```{r}
+rc("GGACTACHVHHHTWTCTAAT")
+```
+
+
+
+```{r}
+removePrimers(NoprimEU, EU_Filt_V4, primer.fwd=F515, primer.rev=rc(R806), orient=TRUE, verbose = TRUE, max.mismatch = 3)
+```
+
+```{r}
+removePrimers(NoprimWU, WU_Filt_V4, primer.fwd=F515, primer.rev=rc(R806), orient=TRUE, verbose=TRUE,  max.mismatch = 3)
+```
+
+
+
+```{r}
+WU_Filt_V4 <- file.path(output.dir, "noprimers", "filtered", "filteredV4", basename(WUSampl))
+EU_Filt_V4 <- file.path(output.dir, "noprimers", "filtered", "filteredV4", basename(EUSampl))
+EU_Filt_V4_Cuta <- file.path(output.dir, "noprimers", "filtered", "filteredV4","filteredV4Cuta", basename(EUSampl))
+WU_Filt_V4_Cuta <- file.path(output.dir, "noprimers", "filtered", "filteredV4","filteredV4Cuta", basename(WUSampl))
+
+```
+
+
+```{r}
+EUfilt_V4.out <- dada2::filterAndTrim(EU_Filt_V4, EU_Filt_V4_Cuta, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+EUfilt_V4.out
+```
+
+```{r}
+WUfilt_V4.out <- dada2::filterAndTrim(WU_Filt_V4, WU_Filt_V4_Cuta, maxN=0, rm.phix=TRUE, maxEE=2, compress = TRUE, multithread = FALSE)
+WUfilt_V4.out
+```
+
+```{r}
+setwd("~/BiofoulingProject/noprimers/filtered/filteredV4")
+```
+
+
+```{r}
+errEU_V4_Cutadapt <- dada2::learnErrors(EU_Filt_V4_Cuta, multithread = FALSE)
+```
+
+Learn Errors WU
+
+```{r}
+errWU_V4_Cutadapt <- dada2::learnErrors(WU_Filt_V4_Cuta, multithread = FALSE)
+```
+
+Plot Errors to ensure they look OK
+
+```{r}
+dada2::plotErrors(errEU_V4_Cutadapt, nominalQ=TRUE)
+```
+
+
+```{r}
+dada2::plotErrors(errWU_V4_Cutadapt, nominalQ=TRUE)
+```
+
+The estimated error rates (black line) look like good matches so we can proceed
+
+Determine the number of reads per sample
+
+```{r}
+dadaEU_V4<- dada2::dada(EU_Filt_V4_Cuta, err=errEU_V4_Cutadapt, multithread=TRUE)
+```
+
+```{r}
+dadaWU_V4<- dada2::dada(WU_Filt_V4_Cuta, err=errWU_V4_Cutadapt, multithread=TRUE)
+```
+
+Constructing ASV Table
+
+```{r}
+seqtabEU_V4 <- dada2::makeSequenceTable(dadaEU_V4)
+seqtabWU_V4 <- dada2::makeSequenceTable(dadaWU_V4)
+```
+
+We have a total of 27 ASVs all of length 1300 as we specified in the Filter and Trim step, don't have to remove chimeras
+
+```{r}
+table(nchar(dada2::getSequences(seqtabEU_V4)))
+table(nchar(dada2::getSequences(seqtabWU_V4)))
+```
+
+Time to assign taxonomy
+
+```{r}
+taxaEU_V4 <- dada2::assignTaxonomy(seqtabEU_V4, "~/BiofoulingProject/rdp_train_set_18.fa.gz", multithread = TRUE)
+taxaWU_V4 <- dada2::assignTaxonomy(seqtabWU_V4, "~/BiofoulingProject/rdp_train_set_18.fa.gz", multithread = TRUE)
+```
+
+```{r}
+speciesEU_V4 <- dada2::addSpecies(taxaEU_V4, "~/BiofoulingProject/rdp_species_assignment_18.fa.gz")
+speciesWU_V4 <- dada2::addSpecies(taxaWU_V4, "~/BiofoulingProject/rdp_species_assignment_18.fa.gz")
+```
+
+```{r}
+EUprint_V4 <- speciesEU_V4
+rownames(EUprint_V4) <- NULL
+```
+
+```{r}
+WUprint_V4 <- speciesWU_V4
+rownames(WUprint_V4) <- NULL
+```
+
+Looks like it assigned Genus, however could not get it to assign species...
+
+```{r}
+print(EUprint_V4)
+print(EUprint)
+print(WUprint_V4)
+print(WUprint)
+
+```
+
+Make VennDiagram comparing V4 vs full 16S rRNA
+
+Finish Mothur Stuff
+
+```{r}
+unique(as.data.frame(EUprint_V4$Genus))
+```
+```{r}
+xs <- as.data.frame(EUprint)
+```
+```{r}
+xx <- as.data.frame(WUprint)
+```
+```{r}
+xxx<- as.data.frame(WUprint_V4)
+```
+```{r}
+yyy<- as.data.frame(WU)
+```
+
+
+```{r}
+write.csv(WUprint, file = "WUprint_16S.csv")
+```
+```{r}
+save(EUprint, file = "EUprint_16S.csv")
+```
+
+
+```{r}
+
+```
+
+
+
+```{r}
+install.packages("vegan")
+```
+
+```{r}
+setwd("~/BiofoulingProject")
+```
+
+```{r}
+vegan::rarefy(x=file("MergeEU1EU2EU3WU1WU2WU3.unique.pick.opti_mcc.groups.rarefaction"), 3)
+```
+
+
+4D NMDS
+
+```{r}
+nmds<-read.table(file="MergeEU1EU2EU3WU1WU2WU3.unique.pick.opti_mcc.jclass.0.03.lt.std.nmds.axes", header=T)
+rownames(nmds)<- nmds[,1]
+sample_names.nmds<-factor(rownames(nmds))
+plot(nmds$axis2~nmds$axis1, xlab="NMDS1", ylab="NMDS2")
+with(nmds, text(x = axis1, y = axis2, labels = sample_names.nmds), col = "black", display = "sites")
+
+
+```
+
+
+```{r}
+nmds.col<-c(rep("green", 3), rep("blue", 3))
+```
+
+```{r}
+plot(nmds$axis2~nmds$axis1, col=nmds.col, xlab="NMDS1", ylab="NMDS2", pch=5, 
+   cex=2)
+legend(x=0.3, y=0.6, legend=c("Elm City", "Warsaw"), pch=1, col=c("green", "blue"))
+with(nmds, text(x = axis1, y = axis2, labels = sample_names.nmds))
+```
+
+```{r}
+meta.df = readr::read_tsv("/data/project_data/biofouling_pacbio/062519CL27F-mapping.txt", comment= "#q2") %>%
+  dplyr::rename(Sample = "Description") %>%
+  column_to_rownames("Sample") %>%
+  as.data.frame
+```
+```{r}
+ab <- merge_phyloseq(Test_EU_16S, samdf_16S_EU)
+```
+```{r}
+
+```
+
+
+```{r}
+WU_meta.df <- meta.df[1:3, ]
+EU_meta.df <- meta.df[4:6, ]
+
+```
+
+```{r}
+WU_meta.df <- mutate(WU_meta.df, Analysis_Type = "V4")
+EU_meta.df <- mutate(EU_meta.df, Analysis_Type = "V4")
+```
+
+```{r}
+WU_meta.df
+```
+```{r}
+
+```
+```{r}
+OTU_EU_16S <- otu_table(seqtabEU, taxa_are_rows = FALSE)
+```
+```{r}
+TAX_EU_16S <- tax_table(taxaEU)
+```
+
+
+```{r}
+OTU_WU_V4 <- otu_table(seqtabWU_V4, taxa_are_rows = FALSE)
+```
+
+```{r}
+TAX_WU_V4 <- tax_table(taxaWU_V4)
+```
+```{r}
+physeq4 <- phyloseq(OTU_WU_V4, TAX_WU_V4)
+```
+
+```{r}
+merge_ps_V4 <- merge_phyloseq(physeq3, physeq4)
+```
+
+```{r}
+sample_names(merge_ps_V4) <- c("EU1_V4", "EU2_V4", "EU3_V4", "WU1_V4", "WU2_V4", "WU3_V4")
+```
+```{r}
+xy <- merge_phyloseq(merge_ps, merge_ps_V4)
+```
+```{r}
+samp_dat <- sample_data(data.frame(Analysis = c("16S", "16S","16S","16S", "16S","16S", "V4","V4","V4","V4","V4", "V4"), row.names = sample_names(xy)))
+```
+
+```{r}
+xxy <- merge_phyloseq(xy, samp_dat)
+```
+
+```{r}
+plot_bar(xxy, fill = "Genus", facet_grid = "Analysis") +
+  theme_bw()
+```
+
+
+```{r}
+samples.out <- rownames(seqtabEU)
+subject <- sapply(strsplit(samples.out, "D"), `[`, 1)
+gender <- substr(subject,1,1)
+samdf_V4_WU <- data.frame(Analysis_Type = c("V4", "V4", "V4"))
+row.names(samdf_V4_WU) <- c("WU1.fastq.gz", "WU2.fastq.gz", "WU3.fastq.gz")
+samdf_V4_WU
+```
+
+```{r}
+samdf_16S_EU <- data.frame(Analysis_Type = c("16S", "16S", "16S", "16S", "16S", "16S"))
+row.names(samdf_16S_EU) <- c("EU1.fastq.gz", "EU2.fastq.gz", "EU3.fastq.gz", "WU1.fastq.gz", "WU2.fastq.gz", "WU3.fastq.gz")
+```
+
+```{r}
+sample_data(samdf_16S_WU)
+```
+```{r}
+sample_data(samdf_16S_EU)
+```
+
+
+```{r}
+
+```
+
+```{r}
+sample_names(WU_meta.df)
+```
+
+```{r}
+otus_WU = phyloseq::otu_table(seqtabWU, taxa_are_rows=FALSE)
+
+sd_WU = sample_names(WU_meta.df)
+
+ps_WU
+```
+
+```{r}
+Test_EU_16S <- phyloseq(otus_EU,
+              sd_EU,
+              taxa_names(speciesEU))
+```
+
+```{r}
+Test_Merge
+```
+```{r}
+
+```
+
+
+```{r}
+Test_Merge <- merge_phyloseq(Test_EU_16S, Test_WU_16S)
+```
+```{r}
+plot_bar(Test_Merge, fill = "Genus")
+```
+
+
+```{r}
+getslots.phyloseq(ps_EU_16S)
+```
+```{r}
+
+```
+
+
+```{r}
+.rs.restartR()
+```
+```{r}
+merge_phyloseq(ps_EU_16S, ps_WU_16S)
+```
+```{r}
+ps_EU_V4
+```
+
+
+```{r}
+merge_phyloseq(ps_EU_V4, ps_EU)
+```
+```{r}
+
+```
+
+
+
+```{r}
+plot_bar(ps_WU, facet_grid = "Analysis_Type")
+```
+
+
+```{r}
+ps_EU_16S <- phyloseq(otu_table(seqtabEU, taxa_are_rows=FALSE), 
+               tax_table(taxaEU))
+```
+
+```{r}
+merge_ps_16S <- merge_phyloseq(ps_EU_16S, ps_WU_16S)
+```
+```{r}
+merge_ps_V4 <- merge_phyloseq(ps_EU_V4, ps_WU_V4)
+```
+
+```{r}
+sample_names(merge_ps_V4) <- c("EU1_V4", "EU2_V4", "EU3_V4", "WU1_V4", "WU2_V4", "WU3_V4")
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+
+```{r}
+plot_bar(ps_WU, facet_grid = Analysis_Type)+
+  ggplot2::theme_bw()
+  
+```
+
+```{r}
+Final_Merge_PS <- merge_phyloseq(merge_ps_V4, merge_ps_16S)
+```
+
+
+```{r}
+merge_ps_16S <- merge_phyloseq(ps_EU, ps_WU)
+```
+
+```{r}
+write_rds(merge_ps_V4, file = "merge_ps_V4.rds")
+```
+
+```{r}
+write_rds(merge_ps_16S, file = "merge_ps_16S.rds")
+```
 
 
 
@@ -191,6 +639,32 @@ print(WUprint)
 
 
 
+```{r}
+plot_richness(merge_ps_V4)
+```
+
+
+
+```{r}
+ps.prop_EU_V4 <- transform_sample_counts(ps_EU_V4, function(otu) otu/sum(otu))
+```
+
+```{r}
+ps.prop_WU_V4 <- transform_sample_counts(ps_WU_V4, function(otu) otu/sum(otu))
+```
+
+```{r}
+ord.nmds.bray_EU <- ordinate(ps.prop_EU, method="NMDS", distance="bray")
+```
+
+```{r}
+ord.nmds.bray_WU <- ordinate(ps.prop_WU, method="NMDS", distance="bray")
+```
+
+```{r}
+plot_ordination(ps.prop_WU, ord.nmds.bray_WU)
+  
+```
 
 
 
@@ -198,18 +672,266 @@ print(WUprint)
 
 
 
+```{r}
+sample_names(sd)
+```
+
+```{r}
+seqtabEU
+```
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+ord.nmds.bray <- ordinate(merge_ps_V4, method="NMDS", distance="bray")
+```
+
+```{r}
+samples.outEU_V4 <- rownames(seqtabEU_V4)
+samples.outEU_V4
+```
+
+```{r}
+phyloseq(otu_table(seqtabEU_V4, taxa_are_rows=FALSE), 
+               tax_table(assignTaxonomy( )))
+```
+```{r}
+merge_ps_V4_Taxa <- assignTaxonomy(merge_ps_V4, "~/BiofoulingProject/rdp_train_set_18.fa.gz" )
+```
+
+```{r}
+plot_bar(merge_ps_V4, fill = samples)
+```
+
+
+```{r}
+otus_V4
+```
+```{r}
+
+```
+
+
+```{r}
+plot_richness(merge_ps_V4, measures = "Simpson", color = "samples") +
+  theme_bw() +
+  theme(axis.text.x=element_blank()) +
+  theme(panel.grid.major = element_blank()) +
+  theme(panel.grid.minor = element_blank())
+          
+plot_richness(ps_merge, measures = "Simpson", color = "samples") +
+  theme_bw() +
+  theme(axis.text.x=element_blank()) +
+  theme(panel.grid.major = element_blank()) +
+  theme(panel.grid.minor = element_blank())
+  
+```
+
+
+```{r}
+plot_bar(physeq = c())
+```
+
+
+```{r}
+VennDiagram::venn.diagram(x = c(WU_16S, WU_V4),
+        category.names = c("WU 16S" , "WU V4"),
+        filename = '#14_venn_diagramm.png',
+        output=TRUE,
+        
+        # Output features
+        imagetype="png" ,
+        height = 480 , 
+        width = 480 , 
+        resolution = 300,
+        compression = "lzw",
+        
+        # Circles
+        lwd = 1,
+        lty = 'dotted',
+        fill = c("Red", "cornflowerblue"),
+        
+        # Numbers
+        cex = .6,
+        fontface = "bold",
+        fontfamily = "sans",
+        
+        # Set names
+        cat.cex = 0.4,
+        cat.fontface = "bold",
+        cat.default.pos = "outer",
+        cat.pos = c(-27, 27),
+        cat.dist = c(0.055, 0.055),
+        cat.fontfamily = "sans"
+)
+```
+
+```{r}
+df <- data.frame(Analysis=c("Elm V4", "Elm 16S", "Warsaw V4", "Warsaw 16S"),
+                Species=c(1, 1, 7, 9))
+```
+
+```{r}
+p<-ggplot(data=df, aes(x=Analysis, y=Species)) +
+  geom_bar(stat="identity", fill = "lightpink", width = 0.75) +
+  xlab("DADA2 Analysis") +
+  ylab("# Unique Genus' Assigned") +
+  ggplot2::theme_bw() + ggplot2::theme(text = ggplot2::element_text(size = 14)) + ggplot2::theme(panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),panel.grid.minor = ggplot2::element_blank(), axis.line = ggplot2::element_line(colour = "black")) +
+    ggplot2::theme(legend.title = ggplot2::element_blank())+
+  geom_text(aes(label=Species), vjust=2, color="black", size=5.5)
+  
+p
+```
+
+
+```{r}
+Final_Phyloseq
+```
+
+```{r}
+ntaxa(xxz)
+```
+
+```{r}
+Phyloseq.ord <- ordinate(xxz, "NMDS", "bray", maxit=1000)
+
+```
+
+```{r}
+p1 = plot_ordination(Final_Phyloseq, Phyloseq.ord, type="taxa", color="Phylum", title="taxa")
+p1
+```
+
+
+```{r}
+xxz<- merge_phyloseq(ordu, Phyloseq.ord, Final_Phyloseq)
+```
+
+
+```{r}
+ordu = ordinate(Final_Phyloseq, "PCoA", "unifrac", weighted=TRUE)
+plot_ordination(Final_Phyloseq, ordu, color="Taxa")
+```
 
 
 
+```{r}
+barplotdf<- data.frame(Analysis=c("Full 16S Reads", "Full 16S Reads Trimmed to V4 Region"),
+                len=c(29, 34))
+```
+
+
+```{r}
+area.colour <- c("Full 16S Reads", "Full 16S Reads Trimmed to V4 Region")
+```
+
+
+```{r}
+p_barplot <- ggplot(data=barplotdf, aes(x=Analysis, y=len, fill = area.colour)) +
+  geom_bar(stat="identity", width = 0.3) +
+  scale_fill_manual(values = c("cadetblue3", "lightyellow3")) +
+  ylab("# of Unique ASVs") +
+  xlab("Analysis Type") +
+  theme_bw() +
+  geom_text(aes(label=len), vjust=1.8, color="Black", size=4.5) +
+  ggplot2::theme(text = ggplot2::element_text(size = 13)) + ggplot2::theme(panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),panel.grid.minor = ggplot2::element_blank(), axis.line = ggplot2::element_line(colour = "black")) +
+    ggplot2::theme(legend.title = ggplot2::element_blank()) +
+  theme(axis.text.x = element_blank()) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 35)) +
+  ggplot2::theme(panel.grid.major.x = element_blank()) + ggplot2::theme(panel.grid.major.y = element_line( size=.1, color="black" ))
+p_barplot
+```
+
+```{r}
+percentbarplotdf<- data.frame(Analysis=factor(c("Elm City 16S", "Warsaw 16S", "Elm City Trimmed to V4", "Warsaw Trimmed to V4")),
+                len=c(44.4, 100, 63.6, 87.0))
+percentbarplotdf$Analysis <- factor(percentbarplotdf$Analysis,                                    
+                  levels = c("Elm City 16S", "Warsaw 16S", "Elm City Trimmed to V4", "Warsaw Trimmed to V4"))
+```
+
+```{r}
+area.colour.bar <- c("Full 16S Reads" , "Full 16S Reads", "Reads Trimmed to V4", "Reads Trimmed to V4")
+```
 
 
 
+```{r}
+p_barplot_percent <- ggplot(data=percentbarplotdf, aes(x=Analysis, y=len, fill = area.colour.bar)) +
+  geom_bar(stat="identity", width = 0.5) +
+  scale_fill_manual(values = c("lightcoral", "darkseagreen")) +
+  ylab("% ASVs Assigned to Genus Level") +
+  xlab("Analysis Type") +
+  theme_bw() +
+  geom_text(aes(label=len), vjust=1.8, color="Black", size=4.5) +
+  ggplot2::theme(text = ggplot2::element_text(size = 13)) + ggplot2::theme(panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),panel.grid.minor = ggplot2::element_blank(), axis.line = ggplot2::element_line(colour = "black")) +
+    ggplot2::theme(legend.title = ggplot2::element_blank()) + ggplot2::theme(panel.grid.major.x = element_blank()) + ggplot2::theme(panel.grid.major.y = element_line( size=.1, color="black" )) +
+  theme(axis.text.x = element_blank()) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 100))
+p_barplot_percent
+```
+
+```{r}
+uniquesToFasta(getUniques(seqtabWU_V4), fout="~/BiofoulingProject/WUSeqsV4.fasta", ids=paste0("Seq", seq(length(getUniques(seqtabWU_V4)))))
+```
+
+```{r}
+barplotdf_Mothur<- data.frame(Analysis=c("Full 16S Reads", "Full 16S Reads Trimmed to V4 Region"),
+                len=c(17, 24))
+```
+
+
+```{r}
+area.colour.Mothur <- c("Full 16S Reads", "Full 16S Reads Trimmed to V4 Region")
+```
+
+
+```{r}
+p_barplot <- ggplot(data=barplotdf_Mothur, aes(x=Analysis, y=len, fill = area.colour.Mothur)) +
+  geom_bar(stat="identity", width = 0.3) +
+  scale_fill_manual(values = c("peachpuff1", "plum3")) +
+  ylab("# of Unique OTUs") +
+  xlab("Analysis Type") +
+  theme_bw() +
+  geom_text(aes(label=len), vjust=1.8, color="Black", size=4.5) +
+  ggplot2::theme(text = ggplot2::element_text(size = 13)) + ggplot2::theme(panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),panel.grid.minor = ggplot2::element_blank(), axis.line = ggplot2::element_line(colour = "black")) +
+    ggplot2::theme(legend.title = ggplot2::element_blank()) +
+  theme(axis.text.x = element_blank()) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 35)) +
+  ggplot2::theme(panel.grid.major.x = element_blank()) + ggplot2::theme(panel.grid.major.y = element_line( size=.1, color="black" ))
+p_barplot
+```
+
+
+Make a Venn Diagram with Mothur OTU Genus assignments vs DADA2 - Comparing Overlap and such
+
+```{r}
+grid::grid.newpage()
+VennDiagram::draw.pairwise.venn(13, 10, cross.area=6, category = rep("", 2),
+euler.d = TRUE, scaled = TRUE, col = "black",
+                 fill = c("skyblue3", "lightgoldenrod1"), cex = 3, fontfamily = 3)
+```
+
+
+```{r}
+grid::grid.newpage()
+VennDiagram::draw.pairwise.venn(17, 15, cross.area=9, category = rep("", 2),
+euler.d = TRUE, scaled = TRUE, col = "black",
+                 fill = c("darkcyan", "peachpuff1"), cex = 3, fontfamily = 3)
+```
 
 
 
-
-
-
+```{r}
+taxaEU_V4
+```
 
 
 
